@@ -7,6 +7,26 @@ from diffusers import StableDiffusionPipeline, DDIMScheduler, ControlNetModel
 from typing import Union, List, Optional
 from tqdm import tqdm
 from PIL import Image
+from icecream import ic
+
+
+def zero_module(model: nn.Module):
+    for parameter in model.parameters():
+        nn.init.zeros_(parameter)
+
+    return model
+
+
+class ControlInputConv(nn.Module):
+    """This module is to replace the Conditional Embeddings of ControlNet to handle the message input
+    """
+    def __init__(self):
+        super().__init__()
+        # out_channel 320 
+        self.conv_in = nn.Conv2d(3, 320, 1)
+
+    def forward(self, x):
+        return self.conv_in(x)
 
 
 class StableDiffusionControlnetPipeline(nn.Module):
@@ -185,8 +205,10 @@ class StableDiffusionControlnetPipeline(nn.Module):
         if self.is_train:
             # if trian, load a controlnet which is copied from unet
             self.controlnet = ControlNetModel.from_unet(self.unet)
+            self.controlnet.controlnet_cond_embedding = zero_module(ControlInputConv())
         else:
             # load pretrained controlnet
+            # TODO: load controlnet from pretrained pt file
             self.controlnet = ControlNetModel.from_pretrained(self.controlnet_path)
 
 
@@ -195,7 +217,7 @@ def device_type() -> torch.device:
 
 
 if __name__ == "__main__":
-    secret_inputs = torch.randint(1, size=(2, 3, 512, 512)).float().to(device_type())
+    secret_inputs = torch.randint(1, size=(2, 3, 64, 64)).float().to(device_type())
 
     Pipeline = StableDiffusionControlnetPipeline()
 
@@ -210,7 +232,9 @@ if __name__ == "__main__":
         seed=7,
     )
 
+    ic(f"images shape is {images.shape}")
     batch_size = images.shape[0]
+    images = images.permute(0, 2, 3, 1).type(torch.uint8)
     images = images.detach().cpu().numpy()
     images = np.split(images, batch_size)
     images = [Image.fromarray(np.squeeze(image)) for image in images]
