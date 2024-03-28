@@ -99,7 +99,7 @@ class StableDiffusionControlnetPipeline(nn.Module):
         self.unet.requires_grad_(False)
         self.text_encoder.requires_grad_(False)
         self.controlnet.train()
-        self.controlnet.enable_gradient_checkpointing() # to save gpu memory
+        ic("train mode on.")
 
 
     def encode_prompt(self, prompts: Union[List[str]]):
@@ -147,35 +147,30 @@ class StableDiffusionControlnetPipeline(nn.Module):
     def forward(self,
                 secret_inputs: torch.FloatTensor,
                 prompts: List[str],
-                negative_prompts: Optional[List[str]],
-                seed: int,) -> torch.Tensor:
+                negative_prompts: Optional[List[str]] = None,
+                seed: int = 42,) -> torch.Tensor:
         batch_size = len(prompts)
 
         if negative_prompts is None:
             negative_prompts = [""] * len(prompts)
+
+        self.move_to_gpu() 
 
         # prepare latents
         latents = self.prepare_latents(seed=seed, batch_size=batch_size)
 
         # prepare embeddings
         # TODO: Lazy transfer, Try hooks to optimize redundent code below
-        self.text_encoder.to(device_type())
         embeddings = self.prepare_prompts(prompts=prompts, negative_prompts=negative_prompts)
-        self.text_encoder.cpu()
 
         # prepare timesteps
         timesteps = self.retrieve_steps()
 
         # do inference
-        self.unet.to(device_type())
-        self.controlnet.to(device_type())
         sample = self.DDIMLoop(latents, embeddings, secret_inputs, timesteps)
-        self.unet.cpu()
 
         # decode samples 
-        self.vae.to(device_type())
         images = self.decode_latents(sample, return_type="pt")
-        self.vae.cpu()
 
         return images
 
