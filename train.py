@@ -23,8 +23,8 @@ def main():
     valid_dataset = MessageDataset(message_dir="/root/autodl-tmp/data/valid_data",
                                    caption_file_path="/root/autodl-tmp/data/captions/valid_caption.csv")
 
-    train_loader = DataLoader(train_dataset, batch_size=2, num_workers=8, shuffle=True, pin_memory=True)
-    valid_loader = DataLoader(valid_dataset, batch_size=2, num_workers=8, shuffle=False, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=4, num_workers=8, shuffle=True, pin_memory=True)
+    valid_loader = DataLoader(valid_dataset, batch_size=4, num_workers=8, shuffle=False, pin_memory=True)
 
     # 2. model
     stego_pipeline = StegoPipeline()
@@ -38,7 +38,11 @@ def main():
         max_epochs=1,
         accelerator="gpu",
         devices=1,
-        default_root_dir="/root/autodl-tmp/checkpoints/",
+        default_root_dir="~/tf-logs/",
+        val_check_interval=10000,
+        callbacks=[
+            checkpoint_callback,
+        ],
     )
 
     trainer.fit(
@@ -48,8 +52,8 @@ def main():
     )
 
     log_file = "best.txt"
-    with open(log_file, 'x') as f:
-        f.wirte(str(checkpoint_callback.best_model_path))
+    with open(log_file, 'w') as f:
+        f.write(str(checkpoint_callback.best_model_path))
 
 
 if __name__ == "__main__":

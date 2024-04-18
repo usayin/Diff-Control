@@ -8,7 +8,6 @@ from .StableDiffusionControlnetPipeline import StableDiffusionControlnetPipeline
 from .Decoder import Decoder
 
 import lightning as L
-import torchmetrics
 
 
 @torch.no_grad()
@@ -65,7 +64,6 @@ class StegoPipeline(L.LightningModule):
 
     
     def validation_step(self, batch, batch_idx):
-        torch.set_grad_enabled(True)
         message, target, prompts = batch
         stego_images = self.diffusion_pipeline(
             secret_inputs=message,
@@ -75,7 +73,7 @@ class StegoPipeline(L.LightningModule):
         val_loss = F.mse_loss(decoded_output, target)
         val_acc = acc(decoded_output, target)
         metrics = {"val_loss": val_loss, "val_acc": val_acc}
-        self.log_dict(metrics)
+        self.log_dict(metrics, reduce_fx="mean")
 
     
     def test_step(self, batch, batch_idx):
@@ -85,15 +83,15 @@ class StegoPipeline(L.LightningModule):
             prompts=list(prompts)
         )
         decoded_output = self.decoder(stego_images)
-        test_acc = torchmetrics.Accuracy(decoded_output, target)
-        self.log("test_acc", test_acc)
+        test_acc = acc(decoded_output, target)
+        self.log("test_acc", test_acc, reduce_fx="mean")
 
 
     
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(
             [{"params": self.decoder.parameters()}, {"params": self.diffusion_pipeline.controlnet.parameters()}],
-            lr=1e-4,
+            lr=1e-3,
         )
 
         return optimizer
